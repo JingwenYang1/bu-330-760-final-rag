@@ -4,9 +4,7 @@ import pickle
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 import google.genai as genai
-import os
 
-# Load data
 @st.cache_resource
 def load_resources():
     with open("chunks.pkl", "rb") as f:
@@ -19,8 +17,6 @@ def load_resources():
     return chunks, embeddings, embed_model, bm25
 
 chunks, embeddings, embed_model, bm25 = load_resources()
-
-# Gemini client
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def rag_search(query, top_k=5):
@@ -52,30 +48,26 @@ RULING:"""
     )
     return response.text
 
-# UI
 st.title("D&D 5e Rules Assistant")
-st.caption("RAG system vs BM25 keyword baseline")
+st.caption("Ask any rule question and get an answer based on the official SRD 5.2")
 
 query = st.text_input("Ask a rule question:", placeholder="e.g. Can a wizard cast a spell while holding a shield and weapon?")
 
 if st.button("Submit") and query:
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("RAG Answer")
-        with st.spinner("Retrieving and reasoning..."):
-            results = rag_search(query)
-            answer = ask_llm(query, results)
-        st.markdown(answer)
-        st.divider()
-        st.caption("Retrieved sections:")
-        for chunk, score in results:
-            with st.expander(f"{chunk['header']} (score: {score:.3f})"):
-                st.text(chunk['text'][:500])
-    
-    with col2:
-        st.subheader("BM25 Baseline")
+    st.subheader("Answer")
+    with st.spinner("Retrieving and reasoning..."):
+        results = rag_search(query)
+        answer = ask_llm(query, results)
+    st.markdown(answer)
+
+    st.subheader("Referenced SRD Sections")
+    for chunk, score in results:
+        with st.expander(chunk['header']):
+            st.markdown(chunk['text'])
+
+    if st.checkbox("Show keyword search baseline comparison"):
+        st.subheader("BM25 Keyword Search Results")
         bm25_results = bm25_search(query)
         for chunk, score in bm25_results:
-            with st.expander(f"{chunk['header']} (score: {score:.2f})"):
-                st.text(chunk['text'][:500])
+            with st.expander(chunk['header']):
+                st.markdown(chunk['text'])
