@@ -19,11 +19,11 @@ def load_resources():
 chunks, embeddings, embed_model, bm25 = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-def rag_search(query, top_k=5):
+def rag_search(query, top_k=5, threshold=0.2):
     query_emb = embed_model.encode([query])
     scores = np.dot(embeddings, query_emb.T).flatten()
     top_idx = scores.argsort()[-top_k:][::-1]
-    return [(chunks[i], scores[i]) for i in top_idx]
+    return [(chunks[i], scores[i]) for i in top_idx if scores[i] >= threshold]
 
 def bm25_search(query, top_k=5):
     scores = bm25.get_scores(query.lower().split())
@@ -54,20 +54,23 @@ st.caption("Ask any rule question and get an answer based on the official SRD 5.
 query = st.text_input("Ask a rule question:", placeholder="e.g. Can a wizard cast a spell while holding a shield and weapon?")
 
 if st.button("Submit") and query:
-    st.subheader("Answer")
+    st.session_state["query"] = query
     with st.spinner("Retrieving and reasoning..."):
-        results = rag_search(query)
-        answer = ask_llm(query, results)
-    st.markdown(answer)
+        st.session_state["rag_results"] = rag_search(query)
+        st.session_state["answer"] = ask_llm(query, st.session_state["rag_results"])
+        st.session_state["bm25_results"] = bm25_search(query)
+
+if "answer" in st.session_state:
+    st.subheader("Answer")
+    st.markdown(st.session_state["answer"])
 
     st.subheader("Referenced SRD Sections")
-    for chunk, score in results:
-        with st.expander(chunk['header']):
+    for chunk, score in st.session_state["rag_results"]:
+        with st.expander(chunk['header'] if chunk['header'] else "SRD Section"):
             st.markdown(chunk['text'])
 
-    if st.checkbox("Show keyword search baseline comparison"):
+    with st.expander("Show keyword search baseline comparison"):
         st.subheader("BM25 Keyword Search Results")
-        bm25_results = bm25_search(query)
-        for chunk, score in bm25_results:
-            with st.expander(chunk['header']):
+        for chunk, score in st.session_state["bm25_results"]:
+            with st.expander(chunk['header'] if chunk['header'] else "SRD Section"):
                 st.markdown(chunk['text'])
