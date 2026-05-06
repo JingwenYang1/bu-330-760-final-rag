@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pickle
 from sentence_transformers import SentenceTransformer
-from rank_bm25 import BM25Okapi
 import google.genai as genai
 
 @st.cache_resource
@@ -12,21 +11,14 @@ def load_resources():
     with open("embeddings.pkl", "rb") as f:
         embeddings = pickle.load(f)
     embed_model = SentenceTransformer('all-MiniLM-L6-v2')
-    tokenized = [c["text"].lower().split() for c in chunks]
-    bm25 = BM25Okapi(tokenized)
-    return chunks, embeddings, embed_model, bm25
+    return chunks, embeddings, embed_model
 
-chunks, embeddings, embed_model, bm25 = load_resources()
+chunks, embeddings, embed_model = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def rag_search(query, top_k=5):
     query_emb = embed_model.encode([query])
     scores = np.dot(embeddings, query_emb.T).flatten()
-    top_idx = scores.argsort()[-top_k:][::-1]
-    return [(chunks[i], scores[i]) for i in top_idx]
-
-def bm25_search(query, top_k=5):
-    scores = bm25.get_scores(query.lower().split())
     top_idx = scores.argsort()[-top_k:][::-1]
     return [(chunks[i], scores[i]) for i in top_idx]
 
@@ -67,20 +59,7 @@ st.caption("Ask any rule question and get an answer based on the official SRD 5.
 query = st.text_input("Ask a rule question:", placeholder="e.g. Can a wizard cast a spell while holding a shield and weapon?")
 
 if st.button("Submit") and query:
-    st.session_state["query"] = query
     with st.spinner("Retrieving and reasoning..."):
-        st.session_state["rag_results"] = rag_search(query)
-        st.session_state["answer"] = ask_llm(query, st.session_state["rag_results"])
-        st.session_state["bm25_results"] = bm25_search(query)
-
-if "answer" in st.session_state:
-    st.markdown(st.session_state["answer"])
-
-    st.divider()
-
-    with st.expander("Show keyword search baseline comparison"):
-        for chunk, score in st.session_state["bm25_results"]:
-            title = chunk['header'] if chunk['header'] else chunk['text'][:60] + "..."
-            st.markdown(f"**{title}**")
-            st.text(chunk['text'][:500])
-            st.divider()
+        results = rag_search(query)
+        answer = ask_llm(query, results)
+    st.markdown(answer)
