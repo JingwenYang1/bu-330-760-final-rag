@@ -49,7 +49,8 @@ RETRIEVED SRD SECTIONS:
 QUESTION: {query}"""
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=prompt
+        contents=prompt,
+        config={"temperature": 0}
     )
     return response.text
 
