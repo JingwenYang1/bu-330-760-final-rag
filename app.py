@@ -19,11 +19,11 @@ def load_resources():
 chunks, embeddings, embed_model, bm25 = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-def rag_search(query, top_k=5, threshold=0.2):
+def rag_search(query, top_k=5):
     query_emb = embed_model.encode([query])
     scores = np.dot(embeddings, query_emb.T).flatten()
     top_idx = scores.argsort()[-top_k:][::-1]
-    return [(chunks[i], scores[i]) for i in top_idx if scores[i] >= threshold]
+    return [(chunks[i], scores[i]) for i in top_idx]
 
 def bm25_search(query, top_k=5):
     scores = bm25.get_scores(query.lower().split())
@@ -34,14 +34,27 @@ def ask_llm(query, retrieved):
     context = "\n\n---\n\n".join(
         [f"[Section: {c['header']}]\n{c['text']}" for c, s in retrieved]
     )
-    prompt = f"""You are a D&D 5e rules assistant. Based ONLY on the following SRD sections, answer the rule question. Cite which sections you used. If the answer is not clearly supported by the provided text, say so.
+    prompt = f"""You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.
 
-RETRIEVED RULES:
+Your response must follow this exact format:
+
+## Ruling
+State the conclusion directly in 1-2 sentences.
+
+## Explanation
+Explain the reasoning step by step. When referencing a rule, mention where it comes from, for example: "In the section on Grappling, the SRD states that..." or "According to the Combat rules regarding bonus actions...". Do NOT use direct quotes here.
+
+## SRD References
+For each rule you relied on, list:
+- A short descriptive title
+- The exact quote from the SRD
+
+If the answer is not clearly supported by the provided text, say so explicitly.
+
+RETRIEVED SRD SECTIONS:
 {context}
 
-QUESTION: {query}
-
-RULING:"""
+QUESTION: {query}"""
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
@@ -61,16 +74,13 @@ if st.button("Submit") and query:
         st.session_state["bm25_results"] = bm25_search(query)
 
 if "answer" in st.session_state:
-    st.subheader("Answer")
     st.markdown(st.session_state["answer"])
 
-    st.subheader("Referenced SRD Sections")
-    for chunk, score in st.session_state["rag_results"]:
-        with st.expander(chunk['header'] if chunk['header'] else "SRD Section"):
-            st.markdown(chunk['text'])
+    st.divider()
 
     with st.expander("Show keyword search baseline comparison"):
-        st.subheader("BM25 Keyword Search Results")
         for chunk, score in st.session_state["bm25_results"]:
-            with st.expander(chunk['header'] if chunk['header'] else "SRD Section"):
-                st.markdown(chunk['text'])
+            title = chunk['header'] if chunk['header'] else chunk['text'][:60] + "..."
+            st.markdown(f"**{title}**")
+            st.text(chunk['text'][:500])
+            st.divider()
