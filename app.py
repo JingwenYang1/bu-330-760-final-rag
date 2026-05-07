@@ -24,7 +24,7 @@ def rag_search(query, top_k=5):
 
 def ask_llm(query, retrieved):
     context = "\n\n---\n\n".join(
-        [f"[Section: {c['header']}, Page: {c['pages'][0] if c['pages'] else 'N/A'}]\n{c['text']}" for c, s in retrieved]
+        [f"[Section: {c.get('header','')}, Page: {c.get('pages',[0])[0]}]\n{c['text']}" for c, s in retrieved]
     )
     prompt = f"""You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.
 
@@ -44,23 +44,4 @@ For each rule you relied on, list:
 If the answer is not clearly supported by the provided text, say so explicitly.
 
 RETRIEVED SRD SECTIONS:
-{context}
-
-QUESTION: {query}"""
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config={"temperature": 0}
-    )
-    return response.text
-
-st.title("D&D 5e Rules Assistant")
-st.caption("Ask any rule question and get an answer based on the official SRD 5.2")
-
-query = st.text_input("Ask a rule question:", placeholder="e.g. Can a wizard cast a spell while holding a shield and weapon?")
-
-if st.button("Submit") and query:
-    with st.spinner("Retrieving and reasoning..."):
-        results = rag_search(query)
-        answer = ask_llm(query, results)
-    st.markdown(answer)
+{context
