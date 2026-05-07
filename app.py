@@ -13,7 +13,6 @@ def load_resources():
     with open("embeddings.pkl", "rb") as f:
         embeddings = pickle.load(f)
     embed_model = SentenceTransformer('all-MiniLM-L6-v2')
-    # Build BM25 index
     tokenized = [c["text"].lower().split() for c in chunks]
     bm25 = BM25Okapi(tokenized)
     return chunks, embeddings, embed_model, bm25
@@ -22,14 +21,11 @@ chunks, embeddings, embed_model, bm25 = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def hybrid_search(query, top_k=5):
-    # Semantic scores
     query_emb = embed_model.encode([query])
     sem_scores = np.dot(embeddings, query_emb.T).flatten()
     sem_scores = sem_scores / (sem_scores.max() + 1e-9)
-    # BM25 scores
     bm25_scores = bm25.get_scores(query.lower().split())
     bm25_scores = bm25_scores / (bm25_scores.max() + 1e-9)
-    # Combine
     combined = 0.5 * sem_scores + 0.5 * bm25_scores
     top_idx = combined.argsort()[-top_k:][::-1]
     return [(chunks[i], combined[i]) for i in top_idx]
@@ -42,10 +38,6 @@ def ask_llm(query, retrieved):
         page_str = ", ".join(str(p) for p in pages)
         parts.append(f"[Section: {header}, Pages: {page_str}]\n{c['text']}")
     context = "\n\n---\n\n".join(parts)
-    print("=== CONTEXT SENT TO LLM ===")
-    for p in parts:
-        print(p[:150])
-        print("---")
     prompt = (
         "You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.\n\n"
         "Your response must follow this exact format:\n\n"
@@ -60,7 +52,8 @@ def ask_llm(query, retrieved):
         "For each rule you relied on, list:\n"
         "- A short descriptive title and page number (e.g. 'Two-Weapon Fighting (p. 42)')\n"
         "- The exact quote from the SRD\n\n"
-        "If the answer is not clearly supported by the provided text, say so explicitly.\n\n"
+        "Based on the retrieved rules, always provide your best ruling and reasoning. "
+        "Only say the rules are unclear if the retrieved text contains NO relevant information at all.\n\n"
         "RETRIEVED SRD SECTIONS:\n" + context + "\n\n"
         "QUESTION: " + query
     )
@@ -85,7 +78,7 @@ if st.button("Submit") and query:
 
 if "last_answer" in st.session_state:
     st.markdown(st.session_state["last_answer"])
-    with st.expander("View retrieved SRD chunks"):
+    with st.expander("Developer View: Retrieved SRD Chunks"):
         for c, score in st.session_state["last_results"]:
             pages = c.get("pages", [0])
             page_str = ", ".join(str(p) for p in pages)
