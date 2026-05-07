@@ -4,6 +4,7 @@ import pickle
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 import google.genai as genai
+from google.genai import types
 
 @st.cache_resource
 def load_resources():
@@ -62,7 +63,7 @@ def ask_llm(query, retrieved):
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
-        config={"temperature": 0}
+        config=types.GenerateContentConfig(temperature=0)
     )
     return response.text
 
