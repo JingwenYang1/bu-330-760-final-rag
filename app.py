@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pickle
 from sentence_transformers import SentenceTransformer
+from rank_bm25 import BM25Okapi
 import google.genai as genai
 
 @st.cache_resource
@@ -11,23 +12,34 @@ def load_resources():
     with open("embeddings.pkl", "rb") as f:
         embeddings = pickle.load(f)
     embed_model = SentenceTransformer('all-MiniLM-L6-v2')
-    return chunks, embeddings, embed_model
+    # Build BM25 index
+    tokenized = [c["text"].lower().split() for c in chunks]
+    bm25 = BM25Okapi(tokenized)
+    return chunks, embeddings, embed_model, bm25
 
-chunks, embeddings, embed_model = load_resources()
+chunks, embeddings, embed_model, bm25 = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-def rag_search(query, top_k=5):
+def hybrid_search(query, top_k=5):
+    # Semantic scores
     query_emb = embed_model.encode([query])
-    scores = np.dot(embeddings, query_emb.T).flatten()
-    top_idx = scores.argsort()[-top_k:][::-1]
-    return [(chunks[i], scores[i]) for i in top_idx]
+    sem_scores = np.dot(embeddings, query_emb.T).flatten()
+    sem_scores = sem_scores / (sem_scores.max() + 1e-9)
+    # BM25 scores
+    bm25_scores = bm25.get_scores(query.lower().split())
+    bm25_scores = bm25_scores / (bm25_scores.max() + 1e-9)
+    # Combine
+    combined = 0.5 * sem_scores + 0.5 * bm25_scores
+    top_idx = combined.argsort()[-top_k:][::-1]
+    return [(chunks[i], combined[i]) for i in top_idx]
 
 def ask_llm(query, retrieved):
     parts = []
     for c, s in retrieved:
         header = c.get("header", "")
-        page = c.get("pages", [0])[0]
-        parts.append("[Section: " + header + ", Page: " + str(page) + "]\n" + c["text"])
+        pages = c.get("pages", [0])
+        page_str = ", ".join(str(p) for p in pages)
+        parts.append(f"[Section: {header}, Pages: {page_str}]\n{c['text']}")
     context = "\n\n---\n\n".join(parts)
     prompt = (
         "You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.\n\n"
@@ -55,12 +67,23 @@ def ask_llm(query, retrieved):
     return response.text
 
 st.title("D&D 5e Rules Assistant")
-st.caption("Ask any rule question and get an answer based on the official SRD 5.2")
+st.caption("Ask any rule question — answers are based on the official SRD 5.2 (hybrid semantic + keyword search)")
 
 query = st.text_input("Ask a rule question:", placeholder="e.g. Can a wizard cast a spell while holding a shield and weapon?")
 
 if st.button("Submit") and query:
     with st.spinner("Retrieving and reasoning..."):
-        results = rag_search(query)
+        results = hybrid_search(query)
         answer = ask_llm(query, results)
-    st.markdown(answer)
+    st.session_state["last_answer"] = answer
+    st.session_state["last_results"] = results
+
+if "last_answer" in st.session_state:
+    st.markdown(st.session_state["last_answer"])
+    with st.expander("View retrieved SRD chunks"):
+        for c, score in st.session_state["last_results"]:
+            pages = c.get("pages", [0])
+            page_str = ", ".join(str(p) for p in pages)
+            st.markdown(f"**{c['header']}** (p. {page_str}) — score: {score:.3f}")
+            st.text(c["text"][:300] + "...")
+            st.divider()
