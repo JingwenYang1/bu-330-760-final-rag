@@ -24,7 +24,7 @@ def rag_search(query, top_k=5):
 
 def ask_llm(query, retrieved):
     context = "\n\n---\n\n".join(
-        [f"[Section: {c['header']}]\n{c['text']}" for c, s in retrieved]
+        [f"[Section: {c['header']}, Page: {c['pages'][0] if c['pages'] else 'N/A'}]\n{c['text']}" for c, s in retrieved]
     )
     prompt = f"""You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.
 
@@ -34,11 +34,11 @@ Your response must follow this exact format:
 State the conclusion directly in 1-2 sentences.
 
 ## Explanation
-Explain the reasoning step by step. When referencing a rule, mention where it comes from, for example: "In the section on Grappling, the SRD states that..." or "According to the Combat rules regarding bonus actions...". Do NOT use direct quotes here.
+Explain the reasoning step by step. When referencing a rule, mention the page number, for example: "On page 12, in the section on Grappling, the SRD states that..." or "According to page 45, the Combat rules regarding bonus actions...". Do NOT use direct quotes in this section.
 
 ## SRD References
 For each rule you relied on, list:
-- A short descriptive title
+- A short descriptive title and page number (e.g. "Two-Weapon Fighting (p. 42)")
 - The exact quote from the SRD
 
 If the answer is not clearly supported by the provided text, say so explicitly.
