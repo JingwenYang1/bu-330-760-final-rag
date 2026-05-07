@@ -42,6 +42,10 @@ def ask_llm(query, retrieved):
         page_str = ", ".join(str(p) for p in pages)
         parts.append(f"[Section: {header}, Pages: {page_str}]\n{c['text']}")
     context = "\n\n---\n\n".join(parts)
+    print("=== CONTEXT SENT TO LLM ===")
+    for p in parts:
+        print(p[:150])
+        print("---")
     prompt = (
         "You are a D&D 5e rules assistant. Answer the rule question based ONLY on the SRD sections provided below.\n\n"
         "Your response must follow this exact format:\n\n"
