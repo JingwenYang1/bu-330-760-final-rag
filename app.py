@@ -20,7 +20,7 @@ def load_resources():
 chunks, embeddings, embed_model, bm25 = load_resources()
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-def hybrid_search(query, top_k=5):
+def hybrid_search(query, top_k=10):
     query_emb = embed_model.encode([query])
     sem_scores = np.dot(embeddings, query_emb.T).flatten()
     sem_scores = sem_scores / (sem_scores.max() + 1e-9)
