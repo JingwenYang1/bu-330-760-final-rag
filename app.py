@@ -8,7 +8,7 @@ import google.genai as genai
 from google.genai import types
 
 # --- Constants ---
-SCORE_THRESHOLD = 0.15  # Context dilution fix (M3 slide 60): drop low-relevance chunks
+SCORE_THRESHOLD = 0.10  # Context dilution fix (M3 slide 60): drop low-relevance chunks
 MAX_CHUNKS = 10
 
 @st.cache_resource
@@ -69,7 +69,9 @@ Before giving your ruling, first identify which specific rules from the retrieve
 ## Constraints
 - Base your answer ONLY on the provided SRD sections. Do not use outside knowledge.
 - When analyzing a situation, carefully check whether ALL requirements and conditions of a rule are met before concluding that the rule applies or does not apply.
-- Always provide your best ruling and reasoning. Only say the rules are unclear if the retrieved text contains NO relevant information at all.
+- When a question involves multiple game mechanics, analyze each mechanic separately before combining them into a final ruling.
+- When determining if a character can perform an action, trace the full logical chain: identify what the action requires, check what the character's hands/body/resources are doing, and determine if each requirement is satisfied or blocked.
+- Always provide your best ruling and reasoning. Only say the rules are unclear if the retrieved text contains NO relevant information at all. the retrieved text contains NO relevant information at all.
 
 ## Output Format
 Respond in this exact format:
