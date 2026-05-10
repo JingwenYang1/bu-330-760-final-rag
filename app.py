@@ -141,10 +141,4 @@ if st.button("Submit") and query:
 
 if "last_answer" in st.session_state:
     st.markdown(st.session_state["last_answer"])
-    with st.expander("Developer View: Retrieved SRD Chunks"):
-        for c, score in st.session_state["last_results"]:
-            pages = c.get("pages", [0])
-            page_str = ", ".join(str(p) for p in pages)
-            st.markdown(f"**{c['header']}** (p. {page_str}) — score: {score:.3f}")
-            st.text(c["text"][:300] + "...")
-            st.divider()
+
